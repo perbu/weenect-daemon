@@ -121,17 +121,64 @@ func runDaemon(cfg *Config) error {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	go func() {
-		<-sigChan
-		logger.Info("Received shutdown signal")
-		cancel()
-	}()
+	// Start API server if enabled
+	var apiServer *APIServer
+	var apiServerErr chan error
+	if cfg.HTTPEnabled {
+		apiServer = NewAPIServer(db, cfg.HTTPPort, logger)
+		apiServerErr = make(chan error, 1)
+
+		go func() {
+			if err := apiServer.Start(); err != nil {
+				apiServerErr <- err
+			}
+		}()
+	}
 
 	// Start scheduler
-	logger.Info("Daemon started", "schedule", cfg.SyncSchedule)
-	if err := scheduler.Run(ctx); err != nil {
-		return fmt.Errorf("scheduler error: %w", err)
+	schedulerErr := make(chan error, 1)
+	go func() {
+		schedulerErr <- scheduler.Run(ctx)
+	}()
+
+	logger.Info("Daemon started", "schedule", cfg.SyncSchedule, "http_enabled", cfg.HTTPEnabled, "http_port", cfg.HTTPPort)
+
+	// Wait for shutdown signal or errors
+	select {
+	case <-sigChan:
+		logger.Info("Received shutdown signal")
+		cancel()
+
+		// Graceful shutdown of API server
+		if apiServer != nil {
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+			if err := apiServer.Shutdown(shutdownCtx); err != nil {
+				logger.Error("API server shutdown error", "error", err)
+			}
+		}
+
+		// Wait for scheduler to finish
+		<-schedulerErr
+
+	case err := <-schedulerErr:
+		if err != nil {
+			logger.Error("Scheduler error", "error", err)
+			if apiServer != nil {
+				shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer shutdownCancel()
+				apiServer.Shutdown(shutdownCtx)
+			}
+			return fmt.Errorf("scheduler error: %w", err)
+		}
+
+	case err := <-apiServerErr:
+		logger.Error("API server error", "error", err)
+		cancel()
+		<-schedulerErr
+		return fmt.Errorf("API server error: %w", err)
 	}
+
 	logger.Info("Daemon stopped")
 	return nil
 }

@@ -27,6 +27,10 @@ type Config struct {
 
 	// Logging
 	LogLevel string `json:"log_level"` // debug, info, warn, error
+
+	// HTTP API server
+	HTTPPort    int  `json:"http_port"`
+	HTTPEnabled bool `json:"http_enabled"`
 }
 
 // DefaultConfig returns a config with sensible defaults
@@ -37,6 +41,8 @@ func DefaultConfig() *Config {
 		BackfillStartDate: time.Now().AddDate(0, 0, -30).Format("2006-01-02"), // Last 30 days
 		SyncSchedule:      "0 2 * * *", // 2am daily (cron format)
 		LogLevel:          "info",
+		HTTPPort:          8080,
+		HTTPEnabled:       true,
 	}
 }
 
@@ -106,6 +112,15 @@ func loadConfig(configPath string) (*Config, error) {
 	}
 	if val := os.Getenv("WEENECT_LOG_LEVEL"); val != "" {
 		cfg.LogLevel = val
+	}
+	if val := os.Getenv("WEENECT_HTTP_PORT"); val != "" {
+		var port int
+		if _, err := fmt.Sscanf(val, "%d", &port); err == nil {
+			cfg.HTTPPort = port
+		}
+	}
+	if val := os.Getenv("WEENECT_HTTP_ENABLED"); val != "" {
+		cfg.HTTPEnabled = val == "true" || val == "1"
 	}
 
 	// Validate required fields

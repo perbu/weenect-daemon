@@ -327,3 +327,92 @@ func (d *Database) GetStats(trackerID int) ([]TrackerStats, error) {
 
 	return stats, rows.Err()
 }
+
+// TrackerWithCount represents a tracker with position count for API responses
+type TrackerWithCount struct {
+	ID            int       `json:"id"`
+	Name          string    `json:"name"`
+	LastSync      time.Time `json:"last_sync"`
+	PositionCount int       `json:"position_count"`
+}
+
+// GetAllTrackers retrieves all trackers with position counts
+func (d *Database) GetAllTrackers() ([]TrackerWithCount, error) {
+	query := `
+		SELECT
+			t.id,
+			t.name,
+			t.last_sync_timestamp,
+			COUNT(p.id) as position_count
+		FROM trackers t
+		LEFT JOIN positions p ON t.id = p.tracker_id
+		GROUP BY t.id
+		ORDER BY t.name
+	`
+
+	rows, err := d.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var trackers []TrackerWithCount
+	for rows.Next() {
+		var t TrackerWithCount
+		var lastSync sql.NullTime
+		err := rows.Scan(&t.ID, &t.Name, &lastSync, &t.PositionCount)
+		if err != nil {
+			return nil, err
+		}
+		if lastSync.Valid {
+			t.LastSync = lastSync.Time
+		}
+		trackers = append(trackers, t)
+	}
+
+	return trackers, rows.Err()
+}
+
+// SimplePosition represents a simplified position for API responses
+type SimplePosition struct {
+	Latitude  float64   `json:"lat"`
+	Longitude float64   `json:"lng"`
+	Timestamp time.Time `json:"timestamp"`
+	Battery   *int      `json:"battery,omitempty"`
+}
+
+// GetPositions retrieves positions for a tracker within a time range
+func (d *Database) GetPositions(trackerID int, start, end time.Time) ([]SimplePosition, error) {
+	query := `
+		SELECT latitude, longitude, timestamp, battery
+		FROM positions
+		WHERE tracker_id = ? AND timestamp >= ? AND timestamp <= ?
+		ORDER BY timestamp DESC
+		LIMIT 10000
+	`
+
+	rows, err := d.db.Query(query, trackerID, start, end)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var positions []SimplePosition
+	for rows.Next() {
+		var p SimplePosition
+		err := rows.Scan(&p.Latitude, &p.Longitude, &p.Timestamp, &p.Battery)
+		if err != nil {
+			return nil, err
+		}
+		positions = append(positions, p)
+	}
+
+	return positions, rows.Err()
+}
+
+// TrackerExists checks if a tracker exists
+func (d *Database) TrackerExists(trackerID int) (bool, error) {
+	var exists bool
+	err := d.db.QueryRow("SELECT EXISTS(SELECT 1 FROM trackers WHERE id = ?)", trackerID).Scan(&exists)
+	return exists, err
+}
