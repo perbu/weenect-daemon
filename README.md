@@ -1,4 +1,4 @@
-# Weenect GPS Data Collection Daemon
+# Catboard 2000
 
 A daemon that automatically syncs GPS position data from Weenect trackers to a local SQLite database.
 
@@ -14,14 +14,13 @@ A daemon that automatically syncs GPS position data from Weenect trackers to a l
 ## Installation
 
 ```bash
-go install github.com/perbu/weenect-go/cmd/weenect-daemon@latest
+go install github.com/perbu/cat2k@latest
 ```
 
 Or build from source:
 
 ```bash
-cd cmd/weenect-daemon
-go build
+go build -o cat2k
 ```
 
 ## Configuration
@@ -33,9 +32,9 @@ Configuration can be provided via (in order of priority):
 
 The daemon automatically looks for config files in these locations:
 - `./config.json` (current directory)
-- `./weenect-daemon.json` (current directory)
-- `~/.config/weenect/config.json`
-- `~/.weenect/config.json`
+- `./cat2k.json` (current directory)
+- `~/.config/cat2k/config.json`
+- `~/.cat2k/config.json`
 
 You can override with `--config` flag if needed.
 
@@ -44,7 +43,7 @@ You can override with `--config` flag if needed.
 ```bash
 export WEENECT_USERNAME="your-username"
 export WEENECT_PASSWORD="your-password"
-export WEENECT_DATABASE_PATH="./weenect.db"
+export WEENECT_DATABASE_PATH="./catboard.db"
 export WEENECT_RATE_LIMIT="4.0"
 export WEENECT_BACKFILL_START_DATE="2024-01-01"
 export WEENECT_SYNC_SCHEDULE="0 2 * * *"  # Cron format
@@ -59,7 +58,7 @@ Copy `config.example.json` to one of the default locations (e.g., `./config.json
 {
   "username": "your-weenect-username",
   "password": "your-weenect-password",
-  "database_path": "./weenect.db",
+  "database_path": "./catboard.db",
   "rate_limit": 4.0,
   "backfill_start_date": "2024-01-01",
   "sync_schedule": "0 2 * * *",
@@ -69,7 +68,7 @@ Copy `config.example.json` to one of the default locations (e.g., `./config.json
 
 The daemon will automatically find and use it. If you need a custom location:
 ```bash
-weenect-daemon run --config /path/to/custom-config.json
+cat2k run --config /path/to/custom-config.json
 ```
 
 ### Cron Schedule Format
@@ -98,10 +97,10 @@ Examples:
 
 ```bash
 # Run daemon (uses config.json or env vars)
-weenect-daemon run
+cat2k run
 
 # Run with custom config location
-weenect-daemon run --config /path/to/config.json
+cat2k run --config /path/to/config.json
 ```
 
 The daemon will run continuously and sync according to the schedule.
@@ -110,37 +109,37 @@ The daemon will run continuously and sync according to the schedule.
 
 ```bash
 # Sync all trackers now
-weenect-daemon sync-now
+cat2k sync-now
 
 # Sync specific tracker
-weenect-daemon sync-now --tracker-id 12345
+cat2k sync-now --tracker-id 12345
 ```
 
 ### Backfill Historical Data
 
 ```bash
 # Backfill all trackers from a start date
-weenect-daemon backfill --start-date 2024-01-01
+cat2k backfill --start-date 2024-01-01
 
 # Backfill with custom date range
-weenect-daemon backfill --start-date 2024-01-01 --end-date 2024-12-31
+cat2k backfill --start-date 2024-01-01 --end-date 2024-12-31
 
 # Backfill specific tracker
-weenect-daemon backfill --start-date 2024-01-01 --tracker-id 12345
+cat2k backfill --start-date 2024-01-01 --tracker-id 12345
 ```
 
 ### View Status
 
 ```bash
-weenect-daemon status
+cat2k status
 ```
 
 Example output:
 ```
-Weenect Daemon Status
-=====================
+Catboard 2000 Status
+====================
 
-Database: ./weenect.db
+Database: ./catboard.db
 Trackers: 2
 Total Positions: 15432
 
@@ -154,10 +153,10 @@ Last Sync:
 
 ```bash
 # Stats for all trackers
-weenect-daemon stats
+cat2k stats
 
 # Stats for specific tracker
-weenect-daemon stats --tracker-id 12345
+cat2k stats --tracker-id 12345
 ```
 
 Example output:
@@ -218,11 +217,11 @@ The daemon creates three tables:
 
 ### systemd (Linux)
 
-Create `/etc/systemd/system/weenect-daemon.service`:
+Create `/etc/systemd/system/cat2k.service`:
 
 ```ini
 [Unit]
-Description=Weenect GPS Data Collector
+Description=Catboard 2000 GPS Data Collector
 After=network.target
 
 [Service]
@@ -231,7 +230,7 @@ User=your-user
 WorkingDirectory=/path/to/daemon
 Environment="WEENECT_USERNAME=your-username"
 Environment="WEENECT_PASSWORD=your-password"
-ExecStart=/path/to/weenect-daemon run
+ExecStart=/path/to/cat2k run
 Restart=on-failure
 RestartSec=10
 
@@ -242,14 +241,14 @@ WantedBy=multi-user.target
 Then:
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable weenect-daemon
-sudo systemctl start weenect-daemon
-sudo systemctl status weenect-daemon
+sudo systemctl enable cat2k
+sudo systemctl start cat2k
+sudo systemctl status cat2k
 ```
 
 ### launchd (macOS)
 
-Create `~/Library/LaunchAgents/com.weenect.daemon.plist`:
+Create `~/Library/LaunchAgents/com.catboard2000.daemon.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -257,10 +256,10 @@ Create `~/Library/LaunchAgents/com.weenect.daemon.plist`:
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.weenect.daemon</string>
+    <string>com.catboard2000.daemon</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/path/to/weenect-daemon</string>
+        <string>/path/to/cat2k</string>
         <string>run</string>
     </array>
     <key>EnvironmentVariables</key>
@@ -275,17 +274,17 @@ Create `~/Library/LaunchAgents/com.weenect.daemon.plist`:
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/tmp/weenect-daemon.log</string>
+    <string>/tmp/cat2k.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/weenect-daemon.error.log</string>
+    <string>/tmp/cat2k.error.log</string>
 </dict>
 </plist>
 ```
 
 Then:
 ```bash
-launchctl load ~/Library/LaunchAgents/com.weenect.daemon.plist
-launchctl start com.weenect.daemon
+launchctl load ~/Library/LaunchAgents/com.catboard2000.daemon.plist
+launchctl start com.catboard2000.daemon
 ```
 
 ## Querying the Database
@@ -293,7 +292,7 @@ launchctl start com.weenect.daemon
 You can query the SQLite database directly:
 
 ```bash
-sqlite3 weenect.db
+sqlite3 catboard.db
 
 # Get all trackers
 SELECT * FROM trackers;
@@ -314,10 +313,10 @@ SELECT * FROM sync_log ORDER BY sync_time DESC LIMIT 10;
 
 ```bash
 # View daemon logs (systemd)
-sudo journalctl -u weenect-daemon -f
+sudo journalctl -u cat2k -f
 
 # View daemon logs (launchd)
-tail -f /tmp/weenect-daemon.log
+tail -f /tmp/cat2k.log
 ```
 
 ### Enable Debug Logging
@@ -337,7 +336,7 @@ Debug logging includes:
 
 **Authentication Errors**: Verify username and password are correct
 ```bash
-weenect-daemon sync-now  # Will show auth errors immediately
+cat2k sync-now  # Will show auth errors immediately
 ```
 
 **Rate Limiting**: Reduce `rate_limit` if seeing errors

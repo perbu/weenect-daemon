@@ -40,7 +40,7 @@ func run() error {
 
 	// Special case for version - no config needed
 	if command == "version" {
-		fmt.Printf("weenect-daemon v%s\n", version)
+		fmt.Printf("Catboard 2000 v%s\n", version)
 		return nil
 	}
 
@@ -78,10 +78,10 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Printf(`weenect-daemon v%s - GPS tracker data collection daemon
+	fmt.Printf(`Catboard 2000 v%s - GPS tracker data collection daemon
 
 Usage:
-  weenect-daemon <command> [flags]
+  cat2k <command> [flags]
 
 Commands:
   run         Start daemon with scheduled syncs
@@ -92,14 +92,14 @@ Commands:
   version     Show version information
 
 Flags:
-  Run 'weenect-daemon <command> -h' for command-specific flags
+  Run 'cat2k <command> -h' for command-specific flags
 
 `, version)
 }
 
 func runDaemon(cfg *Config) error {
 	logger := newLogger(cfg.LogLevel)
-	logger.Info("Starting weenect-daemon", "version", version)
+	logger.Info("Starting Catboard 2000", "version", version)
 
 	// Initialize database
 	db, err := initDatabase(cfg.DatabasePath)
@@ -125,7 +125,7 @@ func runDaemon(cfg *Config) error {
 	var apiServer *APIServer
 	var apiServerErr chan error
 	if cfg.HTTPEnabled {
-		apiServer = NewAPIServer(db, cfg.HTTPPort, logger)
+		apiServer = NewAPIServer(db, cfg, cfg.HTTPPort, logger)
 		apiServerErr = make(chan error, 1)
 
 		go func() {
@@ -290,8 +290,8 @@ func showStatus(cfg *Config) error {
 		return fmt.Errorf("failed to get tracker stats: %w", err)
 	}
 
-	fmt.Printf("Weenect Daemon Status\n")
-	fmt.Printf("=====================\n\n")
+	fmt.Printf("Catboard 2000 Status\n")
+	fmt.Printf("====================\n\n")
 	fmt.Printf("Database: %s\n", cfg.DatabasePath)
 	fmt.Printf("Trackers: %d\n", status.TrackerCount)
 	fmt.Printf("Total Positions: %d\n", status.PositionCount)

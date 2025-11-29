@@ -416,3 +416,74 @@ func (d *Database) TrackerExists(trackerID int) (bool, error) {
 	err := d.db.QueryRow("SELECT EXISTS(SELECT 1 FROM trackers WHERE id = ?)", trackerID).Scan(&exists)
 	return exists, err
 }
+
+// LatestPosition represents the most recent position for a tracker
+type LatestPosition struct {
+	TrackerID   int       `json:"tracker_id"`
+	TrackerName string    `json:"name"`
+	Latitude    float64   `json:"lat"`
+	Longitude   float64   `json:"lon"`
+	Timestamp   time.Time `json:"timestamp"`
+	Battery     *int      `json:"battery,omitempty"`
+}
+
+// GetRecentPositions returns positions for a tracker within a time window
+func (d *Database) GetRecentPositions(trackerID int, since time.Time) ([]SimplePosition, error) {
+	query := `
+		SELECT latitude, longitude, timestamp, battery
+		FROM positions
+		WHERE tracker_id = ? AND timestamp >= ?
+		ORDER BY timestamp ASC
+	`
+
+	rows, err := d.db.Query(query, trackerID, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var positions []SimplePosition
+	for rows.Next() {
+		var p SimplePosition
+		err := rows.Scan(&p.Latitude, &p.Longitude, &p.Timestamp, &p.Battery)
+		if err != nil {
+			return nil, err
+		}
+		positions = append(positions, p)
+	}
+
+	return positions, rows.Err()
+}
+
+// GetLatestPositions returns the most recent position for each tracker
+func (d *Database) GetLatestPositions() ([]LatestPosition, error) {
+	query := `
+		SELECT t.id, t.name, p.latitude, p.longitude, p.timestamp, p.battery
+		FROM trackers t
+		INNER JOIN positions p ON t.id = p.tracker_id
+		WHERE p.timestamp = (
+			SELECT MAX(p2.timestamp)
+			FROM positions p2
+			WHERE p2.tracker_id = t.id
+		)
+		ORDER BY t.name
+	`
+
+	rows, err := d.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var positions []LatestPosition
+	for rows.Next() {
+		var p LatestPosition
+		err := rows.Scan(&p.TrackerID, &p.TrackerName, &p.Latitude, &p.Longitude, &p.Timestamp, &p.Battery)
+		if err != nil {
+			return nil, err
+		}
+		positions = append(positions, p)
+	}
+
+	return positions, rows.Err()
+}

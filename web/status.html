@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<title>Tracker Status</title>
+	<style>
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+		}
+
+		body {
+			background: #1a1a2e;
+			color: #eee;
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+			min-height: 100vh;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			padding: 20px;
+		}
+
+		h1 {
+			font-size: 1.2rem;
+			font-weight: 400;
+			color: #888;
+			margin-bottom: 20px;
+			letter-spacing: 0.1em;
+			text-transform: uppercase;
+		}
+
+		.radar-container {
+			position: relative;
+			width: min(80vw, 500px);
+			height: min(80vw, 500px);
+		}
+
+		.radar {
+			width: 100%;
+			height: 100%;
+			border-radius: 50%;
+			background: radial-gradient(circle, #16213e 0%, #1a1a2e 100%);
+			position: relative;
+			box-shadow: 0 0 40px rgba(0, 200, 150, 0.1);
+		}
+
+		.ring {
+			position: absolute;
+			border: 1px solid rgba(0, 200, 150, 0.2);
+			border-radius: 50%;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+		}
+
+		.ring-1 { width: 25%; height: 25%; }
+		.ring-2 { width: 50%; height: 50%; }
+		.ring-3 { width: 75%; height: 75%; }
+		.ring-4 { width: 100%; height: 100%; border-color: rgba(0, 200, 150, 0.3); }
+
+		.ring-label {
+			position: absolute;
+			font-size: 0.7rem;
+			color: rgba(0, 200, 150, 0.5);
+			left: 50%;
+			transform: translateX(-50%);
+			top: -18px;
+		}
+
+		.ring-label-outer {
+			top: auto;
+			bottom: -18px;
+		}
+
+		.crosshair {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+		}
+
+		.crosshair::before,
+		.crosshair::after {
+			content: '';
+			position: absolute;
+			background: rgba(0, 200, 150, 0.15);
+		}
+
+		.crosshair::before {
+			width: 1px;
+			height: min(80vw, 500px);
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+		}
+
+		.crosshair::after {
+			width: min(80vw, 500px);
+			height: 1px;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+		}
+
+		.home {
+			position: absolute;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			width: 12px;
+			height: 12px;
+			background: #00c896;
+			border-radius: 50%;
+			box-shadow: 0 0 10px rgba(0, 200, 150, 0.8);
+			z-index: 10;
+		}
+
+		.compass {
+			position: absolute;
+			font-size: 0.75rem;
+			color: rgba(255, 255, 255, 0.4);
+			font-weight: 500;
+		}
+
+		.compass.n { top: 8px; left: 50%; transform: translateX(-50%); }
+		.compass.s { bottom: 8px; left: 50%; transform: translateX(-50%); }
+		.compass.e { right: 12px; top: 50%; transform: translateY(-50%); }
+		.compass.w { left: 12px; top: 50%; transform: translateY(-50%); }
+
+		.tracker {
+			position: absolute;
+			transform: translate(-50%, -50%);
+			z-index: 20;
+			text-align: center;
+			transition: all 0.5s ease-out;
+		}
+
+		.tracker-dot {
+			width: 16px;
+			height: 16px;
+			border-radius: 50%;
+			margin: 0 auto 4px;
+			box-shadow: 0 0 12px currentColor;
+		}
+
+		.tracker-name {
+			font-size: 0.75rem;
+			font-weight: 500;
+			white-space: nowrap;
+		}
+
+		.tracker-distance {
+			font-size: 0.65rem;
+			color: #888;
+		}
+
+		.info-panel {
+			margin-top: 30px;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 20px;
+			justify-content: center;
+		}
+
+		.tracker-info {
+			text-align: center;
+			padding: 15px 25px;
+			background: rgba(255, 255, 255, 0.03);
+			border-radius: 12px;
+			border: 1px solid rgba(255, 255, 255, 0.05);
+			min-width: 150px;
+		}
+
+		.tracker-info h3 {
+			font-size: 0.9rem;
+			font-weight: 500;
+			margin-bottom: 8px;
+		}
+
+		.tracker-info p {
+			font-size: 0.8rem;
+			color: #888;
+			margin: 4px 0;
+		}
+
+		.tracker-info .last-update {
+			margin-top: 10px;
+			padding-top: 10px;
+			border-top: 1px solid rgba(255, 255, 255, 0.05);
+		}
+
+		.tracker-info .last-update span {
+			color: #aaa;
+		}
+
+		.tracker-info .battery {
+			font-size: 0.8rem;
+			margin: 4px 0;
+		}
+
+		.tracker-info .battery span {
+			font-weight: 500;
+		}
+
+		.battery-green { color: #00c896; }
+		.battery-yellow { color: #f0c040; }
+		.battery-red { color: #ff6b6b; }
+
+		.no-data {
+			color: #666;
+			font-style: italic;
+		}
+
+		.flap-status {
+			font-size: 0.8rem;
+			color: #aaa;
+			margin-top: 8px;
+		}
+
+		.flap-status .location {
+			color: #00c896;
+		}
+
+		.flap-status.outside .location {
+			color: #ff6b6b;
+		}
+
+		.poi {
+			position: absolute;
+			transform: translate(-50%, -50%);
+			z-index: 15;
+			text-align: center;
+		}
+
+		.poi-marker {
+			width: 8px;
+			height: 8px;
+			border-radius: 50%;
+			margin: 0 auto 2px;
+			background: #888;
+			opacity: 0.7;
+		}
+
+		.poi-label {
+			font-size: 0.6rem;
+			color: #888;
+			white-space: nowrap;
+		}
+
+		.trail-svg {
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			z-index: 5;
+			pointer-events: none;
+		}
+	</style>
+</head>
+<body>
+	<div class="radar-container">
+		<div class="radar" id="radar">
+			<svg class="trail-svg" id="trail-svg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+			<div class="ring ring-1"><span class="ring-label">250m</span></div>
+			<div class="ring ring-2"><span class="ring-label">500m</span></div>
+			<div class="ring ring-3"><span class="ring-label">750m</span></div>
+			<div class="ring ring-4"><span class="ring-label ring-label-outer">1km</span></div>
+
+			<div class="crosshair"></div>
+
+			<span class="compass n">N</span>
+			<span class="compass s">S</span>
+			<span class="compass e">E</span>
+			<span class="compass w">W</span>
+
+			<div class="home"></div>
+		</div>
+	</div>
+
+	<div class="info-panel" id="info-panel">
+		<p class="no-data">Loading tracker data...</p>
+	</div>
+
+	<script>
+		const MAX_DISTANCE = 1000;
+		let homeCoords = { lat: 0, lon: 0 };
+
+		function getDistance(lat1, lon1, lat2, lon2) {
+			const R = 6371000;
+			const phi1 = lat1 * Math.PI / 180;
+			const phi2 = lat2 * Math.PI / 180;
+			const deltaPhi = (lat2 - lat1) * Math.PI / 180;
+			const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+
+			const a = Math.sin(deltaPhi/2) * Math.sin(deltaPhi/2) +
+			          Math.cos(phi1) * Math.cos(phi2) *
+			          Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2);
+			const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+			return R * c;
+		}
+
+		function getBearing(lat1, lon1, lat2, lon2) {
+			const phi1 = lat1 * Math.PI / 180;
+			const phi2 = lat2 * Math.PI / 180;
+			const deltaLambda = (lon2 - lon1) * Math.PI / 180;
+
+			const y = Math.sin(deltaLambda) * Math.cos(phi2);
+			const x = Math.cos(phi1) * Math.sin(phi2) -
+			          Math.sin(phi1) * Math.cos(phi2) * Math.cos(deltaLambda);
+
+			let bearing = Math.atan2(y, x) * 180 / Math.PI;
+			return (bearing + 360) % 360;
+		}
+
+		function bearingToCompass(bearing) {
+			const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+			const index = Math.round(bearing / 45) % 8;
+			return directions[index];
+		}
+
+		function timeAgo(isoString) {
+			const date = new Date(isoString);
+			const seconds = Math.floor((new Date() - date) / 1000);
+			const minutes = Math.floor(seconds / 60);
+			const hours = Math.floor(minutes / 60);
+			const days = Math.floor(hours / 24);
+
+			if (days > 0) {
+				return `${days}d ${hours % 24}h ago`;
+			}
+			if (hours > 0) {
+				return `${hours}h ${minutes % 60}m ago`;
+			}
+			if (minutes > 0) {
+				return `${minutes}m ago`;
+			}
+			return 'just now';
+		}
+
+		function getBatteryClass(pct) {
+			if (pct > 60) return 'battery-green';
+			if (pct > 30) return 'battery-yellow';
+			return 'battery-red';
+		}
+
+		// Convert lat/lon to radar x/y coordinates (0-100 range for SVG viewBox)
+		function latLonToRadar(lat, lon) {
+			const distance = getDistance(homeCoords.lat, homeCoords.lon, lat, lon);
+			const bearing = getBearing(homeCoords.lat, homeCoords.lon, lat, lon);
+
+			const radarRadius = 50;
+			const normalizedDistance = Math.min(distance / MAX_DISTANCE, 1);
+			const r = normalizedDistance * radarRadius;
+			const angleRad = (bearing - 90) * Math.PI / 180;
+
+			const x = 50 + r * Math.cos(angleRad);
+			const y = 50 + r * Math.sin(angleRad);
+
+			return { x, y };
+		}
+
+		// Parse hex color to RGB components
+		function hexToRgb(hex) {
+			const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+			return result ? {
+				r: parseInt(result[1], 16),
+				g: parseInt(result[2], 16),
+				b: parseInt(result[3], 16)
+			} : { r: 255, g: 255, b: 255 };
+		}
+
+		// Interpolate between tracker color and black based on age
+		function getTrailColor(trackerColor, timestamp) {
+			const now = new Date();
+			const pointTime = new Date(timestamp);
+			const ageHours = (now - pointTime) / (1000 * 60 * 60);
+			const maxAge = 3; // 3 hours
+			const fade = Math.min(ageHours / maxAge, 1);
+
+			const rgb = hexToRgb(trackerColor);
+			// Interpolate toward black (0,0,0)
+			const r = Math.round(rgb.r * (1 - fade));
+			const g = Math.round(rgb.g * (1 - fade));
+			const b = Math.round(rgb.b * (1 - fade));
+
+			return `rgb(${r}, ${g}, ${b})`;
+		}
+
+		// Draw trail lines for a tracker
+		function drawTrail(tracker) {
+			if (!tracker.history || tracker.history.length < 2) return [];
+
+			const lines = [];
+			for (let i = 0; i < tracker.history.length - 1; i++) {
+				const p1 = tracker.history[i];
+				const p2 = tracker.history[i + 1];
+
+				const start = latLonToRadar(p1.lat, p1.lon);
+				const end = latLonToRadar(p2.lat, p2.lon);
+
+				// Use midpoint timestamp for color
+				const midTime = new Date((new Date(p1.timestamp).getTime() + new Date(p2.timestamp).getTime()) / 2);
+				const color = getTrailColor(tracker.color, midTime);
+
+				const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+				line.setAttribute('x1', start.x);
+				line.setAttribute('y1', start.y);
+				line.setAttribute('x2', end.x);
+				line.setAttribute('y2', end.y);
+				line.setAttribute('stroke', color);
+				line.setAttribute('stroke-width', '0.4');
+				line.setAttribute('stroke-linecap', 'round');
+
+				lines.push(line);
+			}
+			return lines;
+		}
+
+		// Update all trails in the SVG
+		function updateTrails(trackers) {
+			const svg = document.getElementById('trail-svg');
+			svg.innerHTML = ''; // Clear existing trails
+
+			trackers.forEach(tracker => {
+				const lines = drawTrail(tracker);
+				lines.forEach(line => svg.appendChild(line));
+			});
+		}
+
+		function createTrackerElement(tracker, index) {
+			const div = document.createElement('div');
+			div.className = 'tracker';
+			div.id = `tracker-${tracker.id}`;
+			div.innerHTML = `
+				<div class="tracker-dot" style="background: ${tracker.color}; color: ${tracker.color};"></div>
+				<div class="tracker-name" style="color: ${tracker.color};">${tracker.name}</div>
+				<div class="tracker-distance">--m</div>
+			`;
+			return div;
+		}
+
+		function createInfoElement(tracker) {
+			const div = document.createElement('div');
+			div.className = 'tracker-info';
+			div.id = `info-${tracker.id}`;
+			div.innerHTML = `
+				<h3 style="color: ${tracker.color};">${tracker.name}</h3>
+				<p class="distance-dir">--m</p>
+				<p class="battery">Battery: <span>--</span></p>
+				<p class="last-update">Last GPS: <span>--</span></p>
+				<div class="flap-status"></div>
+			`;
+			return div;
+		}
+
+		function positionTracker(tracker) {
+			const distance = getDistance(homeCoords.lat, homeCoords.lon, tracker.lat, tracker.lon);
+			const bearing = getBearing(homeCoords.lat, homeCoords.lon, tracker.lat, tracker.lon);
+
+			const radarRadius = 50;
+			const normalizedDistance = Math.min(distance / MAX_DISTANCE, 1);
+			const r = normalizedDistance * radarRadius;
+			const angleRad = (bearing - 90) * Math.PI / 180;
+
+			const x = 50 + r * Math.cos(angleRad);
+			const y = 50 + r * Math.sin(angleRad);
+
+			const element = document.getElementById(`tracker-${tracker.id}`);
+			if (element) {
+				element.style.left = x + '%';
+				element.style.top = y + '%';
+				element.querySelector('.tracker-distance').textContent = Math.round(distance) + 'm';
+			}
+
+			return { distance, bearing };
+		}
+
+		function updateInfoPanel(tracker, distance, bearing) {
+			const compass = bearingToCompass(bearing);
+			const info = document.getElementById(`info-${tracker.id}`);
+			if (info) {
+				info.querySelector('.distance-dir').textContent = `${Math.round(distance)}m ${compass}`;
+				const batterySpan = info.querySelector('.battery span');
+				if (tracker.battery !== null && tracker.battery !== undefined) {
+					batterySpan.textContent = tracker.battery + '%';
+					batterySpan.className = getBatteryClass(tracker.battery);
+				} else {
+					batterySpan.textContent = 'N/A';
+					batterySpan.className = '';
+				}
+				info.querySelector('.last-update span').textContent = timeAgo(tracker.timestamp);
+
+				// Update flap status if available
+				const flapStatus = info.querySelector('.flap-status');
+				if (tracker.is_inside !== null && tracker.is_inside !== undefined) {
+					const isInside = tracker.is_inside;
+					const location = isInside ? 'inside' : 'outside';
+					flapStatus.className = 'flap-status' + (isInside ? '' : ' outside');
+					if (tracker.last_flap) {
+						flapStatus.innerHTML = `<span class="location">${location}</span> since ${timeAgo(tracker.last_flap)}`;
+					} else {
+						flapStatus.innerHTML = `<span class="location">${location}</span>`;
+					}
+				} else {
+					flapStatus.innerHTML = '';
+				}
+			}
+		}
+
+		let trackerElements = {};
+		let poiElements = {};
+
+		function createPOIElement(poi) {
+			const div = document.createElement('div');
+			div.className = 'poi';
+			div.id = `poi-${poi.name.replace(/\s+/g, '-').toLowerCase()}`;
+			const color = poi.color || '#888';
+			div.innerHTML = `
+				<div class="poi-marker" style="background: ${color};"></div>
+				<div class="poi-label">${poi.name}</div>
+			`;
+			return div;
+		}
+
+		function positionPOI(poi) {
+			const distance = getDistance(homeCoords.lat, homeCoords.lon, poi.lat, poi.lon);
+			const bearing = getBearing(homeCoords.lat, homeCoords.lon, poi.lat, poi.lon);
+
+			const radarRadius = 50;
+			const normalizedDistance = Math.min(distance / MAX_DISTANCE, 1);
+			const r = normalizedDistance * radarRadius;
+			const angleRad = (bearing - 90) * Math.PI / 180;
+
+			const x = 50 + r * Math.cos(angleRad);
+			const y = 50 + r * Math.sin(angleRad);
+
+			const id = `poi-${poi.name.replace(/\s+/g, '-').toLowerCase()}`;
+			const element = document.getElementById(id);
+			if (element) {
+				element.style.left = x + '%';
+				element.style.top = y + '%';
+			}
+		}
+
+		async function fetchAndUpdate() {
+			try {
+				const response = await fetch('/api/status');
+				const data = await response.json();
+
+				homeCoords = data.home;
+
+				const radar = document.getElementById('radar');
+				const infoPanel = document.getElementById('info-panel');
+
+				// Check if we need to rebuild the UI (tracker list changed)
+				const currentIds = new Set(Object.keys(trackerElements).map(Number));
+				const newIds = new Set(data.trackers.map(t => t.id));
+				const needsRebuild = currentIds.size !== newIds.size ||
+					![...currentIds].every(id => newIds.has(id));
+
+				if (needsRebuild) {
+					// Clear existing tracker elements
+					Object.keys(trackerElements).forEach(id => {
+						const el = document.getElementById(`tracker-${id}`);
+						if (el) el.remove();
+						const info = document.getElementById(`info-${id}`);
+						if (info) info.remove();
+					});
+					trackerElements = {};
+
+					// Clear info panel
+					infoPanel.innerHTML = '';
+
+					if (data.trackers.length === 0) {
+						infoPanel.innerHTML = '<p class="no-data">No tracker data available</p>';
+						return;
+					}
+
+					// Create new elements
+					data.trackers.forEach((tracker, index) => {
+						const trackerEl = createTrackerElement(tracker, index);
+						radar.appendChild(trackerEl);
+						trackerElements[tracker.id] = trackerEl;
+
+						const infoEl = createInfoElement(tracker);
+						infoPanel.appendChild(infoEl);
+					});
+				}
+
+				// Update positions
+				data.trackers.forEach(tracker => {
+					const { distance, bearing } = positionTracker(tracker);
+					updateInfoPanel(tracker, distance, bearing);
+				});
+
+				// Update trail lines
+				updateTrails(data.trackers);
+
+				// Handle POIs
+				if (data.pois && data.pois.length > 0) {
+					// Check if POIs changed
+					const currentPOIIds = new Set(Object.keys(poiElements));
+					const newPOIIds = new Set(data.pois.map(p => `poi-${p.name.replace(/\s+/g, '-').toLowerCase()}`));
+					const needsPOIRebuild = currentPOIIds.size !== newPOIIds.size ||
+						![...currentPOIIds].every(id => newPOIIds.has(id));
+
+					if (needsPOIRebuild) {
+						// Clear existing POI elements
+						Object.keys(poiElements).forEach(id => {
+							const el = document.getElementById(id);
+							if (el) el.remove();
+						});
+						poiElements = {};
+
+						// Create new POI elements
+						data.pois.forEach(poi => {
+							const poiEl = createPOIElement(poi);
+							radar.appendChild(poiEl);
+							poiElements[poiEl.id] = poiEl;
+						});
+					}
+
+					// Position POIs
+					data.pois.forEach(poi => positionPOI(poi));
+				}
+			} catch (err) {
+				console.error('Failed to fetch tracker data:', err);
+			}
+		}
+
+		fetchAndUpdate();
+		setInterval(fetchAndUpdate, 30 * 1000); // Update every 30 seconds
+	</script>
+</body>
+</html>

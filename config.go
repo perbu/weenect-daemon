@@ -31,12 +31,31 @@ type Config struct {
 	// HTTP API server
 	HTTPPort    int  `json:"http_port"`
 	HTTPEnabled bool `json:"http_enabled"`
+
+	// Home location for radar display (center point)
+	HomeLat float64 `json:"home_lat"`
+	HomeLon float64 `json:"home_lon"`
+
+	// SureHub credentials (for pet flap status)
+	SureHubEmail    string `json:"surehub_email"`
+	SureHubPassword string `json:"surehub_password"`
+
+	// Points of interest for radar display
+	POIs []POI `json:"pois"`
+}
+
+// POI represents a point of interest on the radar
+type POI struct {
+	Name  string  `json:"name"`
+	Lat   float64 `json:"lat"`
+	Lon   float64 `json:"lon"`
+	Color string  `json:"color,omitempty"` // Optional, defaults to gray
 }
 
 // DefaultConfig returns a config with sensible defaults
 func DefaultConfig() *Config {
 	return &Config{
-		DatabasePath:      "./weenect.db",
+		DatabasePath:      "./catboard.db",
 		RateLimit:         4.0, // 4 requests per second
 		BackfillStartDate: time.Now().AddDate(0, 0, -30).Format("2006-01-02"), // Last 30 days
 		SyncSchedule:      "0 2 * * *", // 2am daily (cron format)
@@ -51,9 +70,9 @@ func getDefaultConfigPaths() []string {
 	homeDir, _ := os.UserHomeDir()
 	return []string{
 		"./config.json",
-		"./weenect-daemon.json",
-		homeDir + "/.config/weenect/config.json",
-		homeDir + "/.weenect/config.json",
+		"./cat2k.json",
+		homeDir + "/.config/cat2k/config.json",
+		homeDir + "/.cat2k/config.json",
 	}
 }
 
@@ -121,6 +140,24 @@ func loadConfig(configPath string) (*Config, error) {
 	}
 	if val := os.Getenv("WEENECT_HTTP_ENABLED"); val != "" {
 		cfg.HTTPEnabled = val == "true" || val == "1"
+	}
+	if val := os.Getenv("WEENECT_HOME_LAT"); val != "" {
+		var lat float64
+		if _, err := fmt.Sscanf(val, "%f", &lat); err == nil {
+			cfg.HomeLat = lat
+		}
+	}
+	if val := os.Getenv("WEENECT_HOME_LON"); val != "" {
+		var lon float64
+		if _, err := fmt.Sscanf(val, "%f", &lon); err == nil {
+			cfg.HomeLon = lon
+		}
+	}
+	if val := os.Getenv("SUREHUB_EMAIL"); val != "" {
+		cfg.SureHubEmail = val
+	}
+	if val := os.Getenv("SUREHUB_PASSWORD"); val != "" {
+		cfg.SureHubPassword = val
 	}
 
 	// Validate required fields

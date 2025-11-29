@@ -1,11 +1,13 @@
 {
   "username": "your-weenect-username",
   "password": "your-weenect-password",
-  "database_path": "./weenect.db",
+  "database_path": "./catboard.db",
   "rate_limit": 4.0,
   "backfill_start_date": "2024-01-01",
   "sync_schedule": "0 2 * * *",
   "log_level": "info",
   "http_port": 8080,
-  "http_enabled": true
+  "http_enabled": true,
+  "home_lat": 59.9139,
+  "home_lon": 10.7522
 }

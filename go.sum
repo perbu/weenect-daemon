@@ -8,6 +8,8 @@ github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWE
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/ncruces/go-strftime v0.1.9 h1:bY0MQC28UADQmHmaF5dgpLmImcShSi2kHU9XLdhx/f4=
 github.com/ncruces/go-strftime v0.1.9/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
+github.com/perbu/go-sure v0.0.0-20251129095105-b73bcc0c9aab h1:RTIalb91A25vK0iARQV6GMdzewGspSsQqrrd42RLJgM=
+github.com/perbu/go-sure v0.0.0-20251129095105-b73bcc0c9aab/go.mod h1:VBP0sK+l3suZtQQL0kZe/ioPnKM9F+T6Z7JcN0drYyE=
 github.com/perbu/weenect-go v0.0.0-20250930182022-875f5604d7e4 h1:OqlDCRA8JV70335yUAS77R75gIOmcAMVB/gPcMPoIxg=
 github.com/perbu/weenect-go v0.0.0-20250930182022-875f5604d7e4/go.mod h1:0+UVGy/7WstBLNIVNM7wMnppLh1SftdIq7zArjtK3t4=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
