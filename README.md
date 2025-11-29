@@ -4,7 +4,7 @@ A daemon that automatically syncs GPS position data from Weenect trackers to a l
 
 This is not meant to be generally useful, but rather a personal project to figure out where my cats are.
 
-![Radar View](radar.jgp)
+![Radar View](radar.jpg)
 ![Heatmap View](heatmap.jpg)
 
 ## Features
