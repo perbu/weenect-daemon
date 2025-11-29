@@ -2,6 +2,11 @@
 
 A daemon that automatically syncs GPS position data from Weenect trackers to a local SQLite database.
 
+This is not meant to be generally useful, but rather a personal project to figure out where my cats are.
+
+![Radar View](radar.jgp)
+![Heatmap View](heatmap.jpg)
+
 ## Features
 
 - **Scheduled Syncing**: Runs on a configurable schedule (default: nightly at 2am)
@@ -26,11 +31,13 @@ go build -o cat2k
 ## Configuration
 
 Configuration can be provided via (in order of priority):
+
 1. Environment variables (highest priority)
 2. Config file (JSON) - automatically searched in default locations
 3. Command-line defaults
 
 The daemon automatically looks for config files in these locations:
+
 - `./config.json` (current directory)
 - `./cat2k.json` (current directory)
 - `~/.config/cat2k/config.json`
@@ -67,6 +74,7 @@ Copy `config.example.json` to one of the default locations (e.g., `./config.json
 ```
 
 The daemon will automatically find and use it. If you need a custom location:
+
 ```bash
 cat2k run --config /path/to/custom-config.json
 ```
@@ -86,6 +94,7 @@ The sync schedule uses standard cron format:
 ```
 
 Examples:
+
 - `0 2 * * *` - Daily at 2am
 - `0 */6 * * *` - Every 6 hours
 - `30 8 * * 1-5` - 8:30am on weekdays
@@ -135,6 +144,7 @@ cat2k status
 ```
 
 Example output:
+
 ```
 Catboard 2000 Status
 ====================
@@ -160,6 +170,7 @@ cat2k stats --tracker-id 12345
 ```
 
 Example output:
+
 ```
 Statistics for All Trackers
 ===========================
@@ -182,6 +193,7 @@ Tracker: Cat Tracker (ID: 12346)
 The daemon creates three tables:
 
 ### `trackers`
+
 - `id` - Tracker ID (primary key)
 - `name` - Tracker name
 - `last_sync_timestamp` - Last successful sync time
@@ -189,6 +201,7 @@ The daemon creates three tables:
 - `updated_at` - Record update time
 
 ### `positions`
+
 - `id` - Position ID (primary key, from Weenect API)
 - `tracker_id` - Foreign key to trackers
 - `timestamp` - Position timestamp
@@ -204,6 +217,7 @@ The daemon creates three tables:
 - `created_at` - Record creation time
 
 ### `sync_log`
+
 - `id` - Log entry ID
 - `tracker_id` - Tracker ID (null for full syncs)
 - `sync_time` - Sync start time
@@ -239,6 +253,7 @@ WantedBy=multi-user.target
 ```
 
 Then:
+
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable cat2k
@@ -254,34 +269,35 @@ Create `~/Library/LaunchAgents/com.catboard2000.daemon.plist`:
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.catboard2000.daemon</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/path/to/cat2k</string>
-        <string>run</string>
-    </array>
-    <key>EnvironmentVariables</key>
     <dict>
-        <key>WEENECT_USERNAME</key>
-        <string>your-username</string>
-        <key>WEENECT_PASSWORD</key>
-        <string>your-password</string>
+        <key>Label</key>
+        <string>com.catboard2000.daemon</string>
+        <key>ProgramArguments</key>
+        <array>
+            <string>/path/to/cat2k</string>
+            <string>run</string>
+        </array>
+        <key>EnvironmentVariables</key>
+        <dict>
+            <key>WEENECT_USERNAME</key>
+            <string>your-username</string>
+            <key>WEENECT_PASSWORD</key>
+            <string>your-password</string>
+        </dict>
+        <key>RunAtLoad</key>
+        <true/>
+        <key>KeepAlive</key>
+        <true/>
+        <key>StandardOutPath</key>
+        <string>/tmp/cat2k.log</string>
+        <key>StandardErrorPath</key>
+        <string>/tmp/cat2k.error.log</string>
     </dict>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/tmp/cat2k.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/cat2k.error.log</string>
-</dict>
 </plist>
 ```
 
 Then:
+
 ```bash
 launchctl load ~/Library/LaunchAgents/com.catboard2000.daemon.plist
 launchctl start com.catboard2000.daemon
@@ -322,11 +338,13 @@ tail -f /tmp/cat2k.log
 ### Enable Debug Logging
 
 Set `log_level` to `debug` in config or:
+
 ```bash
 export WEENECT_LOG_LEVEL="debug"
 ```
 
 Debug logging includes:
+
 - All API requests (login, get trackers, get positions) with parameters
 - API responses with result counts
 - Rate limiter activity (when requests are delayed)
@@ -335,11 +353,13 @@ Debug logging includes:
 ### Common Issues
 
 **Authentication Errors**: Verify username and password are correct
+
 ```bash
 cat2k sync-now  # Will show auth errors immediately
 ```
 
 **Rate Limiting**: Reduce `rate_limit` if seeing errors
+
 ```bash
 export WEENECT_RATE_LIMIT="2.0"  # Slower but safer
 ```
