@@ -1,0 +1,9 @@
+{
+  "name": "Tracker Status",
+  "short_name": "Tracker",
+  "start_url": "/",
+  "display": "fullscreen",
+  "background_color": "#1a1a2e",
+  "theme_color": "#1a1a2e",
+  "orientation": "portrait"
+}
