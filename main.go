@@ -125,7 +125,7 @@ func runDaemon(cfg *Config) error {
 	var apiServer *APIServer
 	var apiServerErr chan error
 	if cfg.HTTPEnabled {
-		apiServer = NewAPIServer(db, cfg, cfg.HTTPPort, logger)
+		apiServer = NewAPIServer(db, cfg, cfg.HTTPListen, logger)
 		apiServerErr = make(chan error, 1)
 
 		go func() {
@@ -141,7 +141,7 @@ func runDaemon(cfg *Config) error {
 		schedulerErr <- scheduler.Run(ctx)
 	}()
 
-	logger.Info("Daemon started", "schedule", cfg.SyncSchedule, "http_enabled", cfg.HTTPEnabled, "http_port", cfg.HTTPPort)
+	logger.Info("Daemon started", "schedule", cfg.SyncSchedule, "http_enabled", cfg.HTTPEnabled, "http_listen", cfg.HTTPListen)
 
 	// Wait for shutdown signal or errors
 	select {

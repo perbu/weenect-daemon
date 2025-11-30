@@ -49,6 +49,7 @@ Optional configuration:
 - `surehub_email`, `surehub_password` - SureHub credentials for pet flap status
 - `pois` - Array of points of interest `[{"name": "Place", "lat": 59.0, "lon": 10.0, "color": "#fff"}]`
 - `sync_schedule` - Cron expression (default: `*/5 * * * *` for every 5 minutes)
+- `http_listen` - HTTP server listen address (default: `:8080`, e.g., `127.0.0.1:8080` for localhost only)
 
 Copy `config.example.json` to `config.json` to get started.
 

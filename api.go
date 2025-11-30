@@ -27,7 +27,7 @@ type APIServer struct {
 }
 
 // NewAPIServer creates a new API server
-func NewAPIServer(db *Database, cfg *Config, port int, logger *slog.Logger) *APIServer {
+func NewAPIServer(db *Database, cfg *Config, listenAddr string, logger *slog.Logger) *APIServer {
 	api := &APIServer{
 		db:     db,
 		cfg:    cfg,
@@ -56,7 +56,7 @@ func NewAPIServer(db *Database, cfg *Config, port int, logger *slog.Logger) *API
 	handler := api.loggingMiddleware(api.corsMiddleware(mux))
 
 	api.server = &http.Server{
-		Addr:         fmt.Sprintf(":%d", port),
+		Addr:         listenAddr,
 		Handler:      handler,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
