@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -46,6 +47,7 @@ func NewAPIServer(db *Database, cfg *Config, listenAddr string, logger *slog.Log
 	mux.HandleFunc("/api/trackers", api.handleGetTrackers)
 	mux.HandleFunc("/api/positions/", api.handleGetPositions)
 	mux.HandleFunc("/api/status", api.handleGetStatus)
+	mux.HandleFunc("/api/heatmap", api.handleGetHeatmap)
 	mux.HandleFunc("/health", api.handleHealth)
 
 	// Static file serving for web UI
@@ -246,8 +248,9 @@ type StatusResponse struct {
 		Lat float64 `json:"lat"`
 		Lon float64 `json:"lon"`
 	} `json:"home"`
-	Trackers []TrackerStatus `json:"trackers"`
-	POIs     []POI           `json:"pois"`
+	Trackers    []TrackerStatus `json:"trackers"`
+	POIs        []POI           `json:"pois"`
+	HeatmapDays int             `json:"heatmap_days"`
 }
 
 // HistoryPoint represents a position in the tracker's recent history
@@ -272,15 +275,16 @@ type TrackerStatus struct {
 }
 
 // Color palette for auto-assigning tracker colors
+// Chosen for good contrast and nice additive blending (coral + violet = pink)
 var trackerColors = []string{
-	"#ff6b6b", // red
-	"#4ecdc4", // teal
-	"#ffe66d", // yellow
-	"#95e1d3", // mint
-	"#f38181", // coral
-	"#aa96da", // lavender
-	"#fcbad3", // pink
-	"#a8d8ea", // sky blue
+	"#ff7b54", // coral orange (Bella)
+	"#a855f7", // violet purple (Luna)
+	"#22d3ee", // cyan
+	"#facc15", // amber
+	"#f472b6", // pink
+	"#34d399", // emerald
+	"#fb923c", // orange
+	"#818cf8", // indigo
 }
 
 // handleGetStatus handles GET /api/status - returns latest positions for radar
@@ -306,6 +310,10 @@ func (a *APIServer) handleGetStatus(w http.ResponseWriter, r *http.Request) {
 	resp := StatusResponse{}
 	resp.Home.Lat = a.cfg.HomeLat
 	resp.Home.Lon = a.cfg.HomeLon
+	resp.HeatmapDays = a.cfg.HeatmapDays
+	if resp.HeatmapDays <= 0 {
+		resp.HeatmapDays = 60 // fallback default
+	}
 
 	// Time window for history trail (3 hours)
 	historyStart := time.Now().Add(-3 * time.Hour)
@@ -414,4 +422,201 @@ func (a *APIServer) fetchPetStatus() map[string]petFlapStatus {
 
 	a.logger.Debug("Fetched pet status from SureHub", "pets", len(result))
 	return result
+}
+
+// HeatmapBin represents a single bin in the heatmap grid
+type HeatmapBin struct {
+	X     int `json:"x"`
+	Y     int `json:"y"`
+	Count int `json:"count"`
+}
+
+// HeatmapTrackerData represents heatmap data for a single tracker
+type HeatmapTrackerData struct {
+	Name  string       `json:"name"`
+	Color string       `json:"color"`
+	Bins  []HeatmapBin `json:"bins"`
+	Max   int          `json:"max"` // Maximum count in any bin (for normalization)
+}
+
+// HeatmapResponse represents the /api/heatmap response
+type HeatmapResponse struct {
+	Resolution int                        `json:"resolution"`
+	RadiusM    float64                    `json:"radius_m"`
+	Days       int                        `json:"days"`
+	Trackers   map[int]HeatmapTrackerData `json:"trackers"`
+}
+
+
+// handleGetHeatmap handles GET /api/heatmap
+func (a *APIServer) handleGetHeatmap(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		a.writeError(w, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	// Parse query parameters
+	query := r.URL.Query()
+
+	days := 30 // default
+	if daysStr := query.Get("days"); daysStr != "" {
+		if d, err := strconv.Atoi(daysStr); err == nil && d > 0 && d <= 365 {
+			days = d
+		}
+	}
+
+	resolution := 100 // default grid size
+	if resStr := query.Get("resolution"); resStr != "" {
+		if res, err := strconv.Atoi(resStr); err == nil && res >= 20 && res <= 200 {
+			resolution = res
+		}
+	}
+
+	since := time.Now().AddDate(0, 0, -days)
+	radiusM := 1000.0 // radar radius in meters (matches MAX_DISTANCE in JS)
+
+	// Fetch all positions for the time period
+	positionsByTracker, err := a.db.GetPositionsForHeatmap(since)
+	if err != nil {
+		a.logger.Error("Failed to get positions for heatmap", "error", err)
+		a.writeError(w, http.StatusInternalServerError, "Failed to retrieve positions")
+		return
+	}
+
+	// Get tracker names
+	trackers, err := a.db.GetAllTrackers()
+	if err != nil {
+		a.logger.Error("Failed to get trackers", "error", err)
+		a.writeError(w, http.StatusInternalServerError, "Failed to retrieve trackers")
+		return
+	}
+
+	// Build tracker info map and determine color assignment
+	// Colors must match the /api/status endpoint (assigned by index in sorted order)
+	trackerInfo := make(map[int]struct {
+		name  string
+		color string
+	})
+	for i, t := range trackers {
+		trackerInfo[t.ID] = struct {
+			name  string
+			color string
+		}{
+			name:  t.Name,
+			color: trackerColors[i%len(trackerColors)],
+		}
+	}
+
+	homeLat := a.cfg.HomeLat
+	homeLon := a.cfg.HomeLon
+
+	resp := HeatmapResponse{
+		Resolution: resolution,
+		RadiusM:    radiusM,
+		Days:       days,
+		Trackers:   make(map[int]HeatmapTrackerData),
+	}
+
+	for trackerID, positions := range positionsByTracker {
+		// Create a 2D grid for binning
+		bins := make(map[[2]int]int)
+		maxCount := 0
+
+		for _, pos := range positions {
+			// Convert lat/lon to radar x,y coordinates (0 to resolution range)
+			x, y := a.latLonToRadarBin(pos.Latitude, pos.Longitude, homeLat, homeLon, radiusM, resolution)
+
+			// Skip positions outside the radar
+			if x < 0 || x >= resolution || y < 0 || y >= resolution {
+				continue
+			}
+
+			key := [2]int{x, y}
+			bins[key]++
+			if bins[key] > maxCount {
+				maxCount = bins[key]
+			}
+		}
+
+		// Convert map to slice
+		binSlice := make([]HeatmapBin, 0, len(bins))
+		for key, count := range bins {
+			binSlice = append(binSlice, HeatmapBin{
+				X:     key[0],
+				Y:     key[1],
+				Count: count,
+			})
+		}
+
+		info := trackerInfo[trackerID]
+		resp.Trackers[trackerID] = HeatmapTrackerData{
+			Name:  info.name,
+			Color: info.color,
+			Bins:  binSlice,
+			Max:   maxCount,
+		}
+
+		a.logger.Debug("Heatmap data generated",
+			"tracker_id", trackerID,
+			"positions", len(positions),
+			"bins", len(binSlice),
+			"max_count", maxCount,
+		)
+	}
+
+	a.writeJSON(w, http.StatusOK, resp)
+}
+
+// latLonToRadarBin converts a lat/lon position to a bin index in the radar grid
+func (a *APIServer) latLonToRadarBin(lat, lon, homeLat, homeLon, radiusM float64, resolution int) (int, int) {
+	distance := haversineDistance(homeLat, homeLon, lat, lon)
+	bearing := calculateBearing(homeLat, homeLon, lat, lon)
+
+	// Normalize distance to 0-1 range (capped at radar edge)
+	normalizedDist := distance / radiusM
+	if normalizedDist > 1 {
+		normalizedDist = 1.1 // Mark as outside
+	}
+
+	// Convert polar to cartesian (center at resolution/2)
+	// Bearing: 0 = North, 90 = East, etc.
+	// In screen coords: 0 degrees = up (negative Y), 90 = right (positive X)
+	angleRad := (bearing - 90) * math.Pi / 180
+	r := normalizedDist * float64(resolution) / 2
+
+	x := float64(resolution)/2 + r*math.Cos(angleRad)
+	y := float64(resolution)/2 + r*math.Sin(angleRad)
+
+	return int(x), int(y)
+}
+
+// haversineDistance calculates distance in meters between two lat/lon points
+func haversineDistance(lat1, lon1, lat2, lon2 float64) float64 {
+	const R = 6371000 // Earth radius in meters
+
+	phi1 := lat1 * math.Pi / 180
+	phi2 := lat2 * math.Pi / 180
+	deltaPhi := (lat2 - lat1) * math.Pi / 180
+	deltaLambda := (lon2 - lon1) * math.Pi / 180
+
+	a := math.Sin(deltaPhi/2)*math.Sin(deltaPhi/2) +
+		math.Cos(phi1)*math.Cos(phi2)*
+			math.Sin(deltaLambda/2)*math.Sin(deltaLambda/2)
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+
+	return R * c
+}
+
+// calculateBearing calculates bearing in degrees from point 1 to point 2
+func calculateBearing(lat1, lon1, lat2, lon2 float64) float64 {
+	phi1 := lat1 * math.Pi / 180
+	phi2 := lat2 * math.Pi / 180
+	deltaLambda := (lon2 - lon1) * math.Pi / 180
+
+	y := math.Sin(deltaLambda) * math.Cos(phi2)
+	x := math.Cos(phi1)*math.Sin(phi2) -
+		math.Sin(phi1)*math.Cos(phi2)*math.Cos(deltaLambda)
+
+	bearing := math.Atan2(y, x) * 180 / math.Pi
+	return math.Mod(bearing+360, 360)
 }

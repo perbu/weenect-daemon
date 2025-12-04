@@ -148,7 +148,7 @@
 			height: 16px;
 			border-radius: 50%;
 			margin: 0 auto 4px;
-			box-shadow: 0 0 12px currentColor;
+			box-shadow: 0 0 12px currentColor, 0 0 0 3px rgba(0, 0, 0, 0.8);
 		}
 
 		.tracker-name {
@@ -264,11 +264,23 @@
 			z-index: 5;
 			pointer-events: none;
 		}
+
+		.heatmap-canvas {
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			z-index: 1;
+			pointer-events: none;
+			border-radius: 50%;
+		}
 	</style>
 </head>
 <body>
 	<div class="radar-container">
 		<div class="radar" id="radar">
+			<canvas class="heatmap-canvas" id="heatmap-canvas"></canvas>
 			<svg class="trail-svg" id="trail-svg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
 			<div class="ring ring-1"><span class="ring-label">250m</span></div>
 			<div class="ring ring-2"><span class="ring-label">500m</span></div>
@@ -281,8 +293,6 @@
 			<span class="compass s">S</span>
 			<span class="compass e">E</span>
 			<span class="compass w">W</span>
-
-			<div class="home"></div>
 		</div>
 	</div>
 
@@ -519,6 +529,143 @@
 
 		let trackerElements = {};
 		let poiElements = {};
+		let configuredHeatmapDays = 60; // Will be updated from /api/status
+
+		// Heatmap caching (24 hours)
+		const HEATMAP_CACHE_KEY = 'cat2k_heatmap_cache';
+		const HEATMAP_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in ms
+
+		// Parse hex color to RGB
+		function hexToRgbComponents(hex) {
+			const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+			return result ? {
+				r: parseInt(result[1], 16),
+				g: parseInt(result[2], 16),
+				b: parseInt(result[3], 16)
+			} : { r: 255, g: 255, b: 255 };
+		}
+
+		// Initialize and render heatmap
+		async function initHeatmap(heatmapDays = 60) {
+			const canvas = document.getElementById('heatmap-canvas');
+			const radar = document.getElementById('radar');
+
+			// Set canvas size to match radar (use higher resolution for quality)
+			const size = Math.min(radar.offsetWidth, radar.offsetHeight);
+			const scale = window.devicePixelRatio || 1;
+			canvas.width = size * scale;
+			canvas.height = size * scale;
+			canvas.style.width = size + 'px';
+			canvas.style.height = size + 'px';
+
+			const ctx = canvas.getContext('2d');
+			ctx.scale(scale, scale);
+
+			// Check cache first (include days in cache key for invalidation)
+			const cached = getCachedHeatmap(heatmapDays);
+			if (cached) {
+				console.log('Using cached heatmap data');
+				renderHeatmap(ctx, cached, size);
+				return;
+			}
+
+			// Fetch fresh heatmap data
+			try {
+				console.log('Fetching heatmap data for', heatmapDays, 'days...');
+				const response = await fetch(`/api/heatmap?days=${heatmapDays}&resolution=100`);
+				const data = await response.json();
+
+				// Cache the data
+				cacheHeatmap(data, heatmapDays);
+
+				// Render
+				renderHeatmap(ctx, data, size);
+			} catch (err) {
+				console.error('Failed to fetch heatmap:', err);
+			}
+		}
+
+		function getCachedHeatmap(days) {
+			try {
+				const cached = localStorage.getItem(HEATMAP_CACHE_KEY);
+				if (!cached) return null;
+
+				const { timestamp, data, cachedDays } = JSON.parse(cached);
+				// Invalidate if expired or days config changed
+				if (Date.now() - timestamp > HEATMAP_CACHE_DURATION || cachedDays !== days) {
+					localStorage.removeItem(HEATMAP_CACHE_KEY);
+					return null;
+				}
+				return data;
+			} catch (e) {
+				return null;
+			}
+		}
+
+		function cacheHeatmap(data, days) {
+			try {
+				localStorage.setItem(HEATMAP_CACHE_KEY, JSON.stringify({
+					timestamp: Date.now(),
+					data: data,
+					cachedDays: days
+				}));
+			} catch (e) {
+				console.warn('Failed to cache heatmap:', e);
+			}
+		}
+
+		function renderHeatmap(ctx, data, canvasSize) {
+			const resolution = data.resolution;
+			const binSize = canvasSize / resolution;
+
+			// Clear canvas
+			ctx.clearRect(0, 0, canvasSize, canvasSize);
+
+			// Find global max for better normalization
+			let globalMax = 0;
+			for (const trackerData of Object.values(data.trackers)) {
+				if (trackerData.max > globalMax) {
+					globalMax = trackerData.max;
+				}
+			}
+
+			// Use additive blending for color mixing
+			ctx.globalCompositeOperation = 'lighter';
+
+			// Heavy blur for soft, ambient glow effect
+			ctx.filter = 'blur(12px)';
+
+			// Render each tracker's heatmap - very subtle
+			for (const [trackerId, trackerData] of Object.entries(data.trackers)) {
+				const rgb = hexToRgbComponents(trackerData.color);
+
+				for (const bin of trackerData.bins) {
+					// Normalize count using log scale
+					const logCount = Math.log(bin.count + 1);
+					const logMax = Math.log(globalMax + 1);
+					const intensity = logCount / logMax;
+
+					// Very low alpha for subtle ambient effect (0.02 to 0.15)
+					const alpha = 0.02 + intensity * 0.13;
+
+					ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+
+					const x = bin.x * binSize + binSize / 2;
+					const y = bin.y * binSize + binSize / 2;
+					const radius = binSize * (1.0 + intensity * 0.5);
+
+					ctx.beginPath();
+					ctx.arc(x, y, radius, 0, Math.PI * 2);
+					ctx.fill();
+				}
+			}
+
+			// Reset
+			ctx.filter = 'none';
+			ctx.globalCompositeOperation = 'source-over';
+
+			console.log('Heatmap rendered with', Object.keys(data.trackers).length, 'trackers');
+		}
 
 		function createPOIElement(poi) {
 			const div = document.createElement('div');
@@ -558,6 +705,11 @@
 				const data = await response.json();
 
 				homeCoords = data.home;
+
+				// Capture heatmap_days config
+				if (data.heatmap_days) {
+					configuredHeatmapDays = data.heatmap_days;
+				}
 
 				const radar = document.getElementById('radar');
 				const infoPanel = document.getElementById('info-panel');
@@ -638,7 +790,10 @@
 			}
 		}
 
-		fetchAndUpdate();
+		fetchAndUpdate().then(() => {
+			// Initialize heatmap after first status fetch (to get heatmap_days config)
+			initHeatmap(configuredHeatmapDays);
+		});
 		setInterval(fetchAndUpdate, 30 * 1000); // Update every 30 seconds
 
 		// Fullscreen on double-tap (for Android Chrome)

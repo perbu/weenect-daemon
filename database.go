@@ -455,6 +455,42 @@ func (d *Database) GetRecentPositions(trackerID int, since time.Time) ([]SimpleP
 	return positions, rows.Err()
 }
 
+// HeatmapPosition represents a position with just coordinates for heatmap generation
+type HeatmapPosition struct {
+	TrackerID int
+	Latitude  float64
+	Longitude float64
+}
+
+// GetPositionsForHeatmap returns all positions for heatmap generation since a given time
+// Returns a map of tracker_id -> slice of positions
+func (d *Database) GetPositionsForHeatmap(since time.Time) (map[int][]HeatmapPosition, error) {
+	query := `
+		SELECT tracker_id, latitude, longitude
+		FROM positions
+		WHERE timestamp >= ?
+		ORDER BY tracker_id
+	`
+
+	rows, err := d.db.Query(query, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int][]HeatmapPosition)
+	for rows.Next() {
+		var p HeatmapPosition
+		err := rows.Scan(&p.TrackerID, &p.Latitude, &p.Longitude)
+		if err != nil {
+			return nil, err
+		}
+		result[p.TrackerID] = append(result[p.TrackerID], p)
+	}
+
+	return result, rows.Err()
+}
+
 // GetLatestPositions returns the most recent position for each tracker
 func (d *Database) GetLatestPositions() ([]LatestPosition, error) {
 	query := `

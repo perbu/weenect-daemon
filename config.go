@@ -42,6 +42,9 @@ type Config struct {
 
 	// Points of interest for radar display
 	POIs []POI `json:"pois"`
+
+	// Heatmap configuration
+	HeatmapDays int `json:"heatmap_days"` // Number of days to include in heatmap (default: 60)
 }
 
 // POI represents a point of interest on the radar
@@ -62,6 +65,7 @@ func DefaultConfig() *Config {
 		LogLevel:          "info",
 		HTTPListen:        ":8080",
 		HTTPEnabled:       true,
+		HeatmapDays:       60, // Last 60 days for heatmap
 	}
 }
 
